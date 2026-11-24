@@ -1,0 +1,121 @@
+name: Render episode
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode folder under episodes/, e.g. 02-pig-war"
+        required: true
+      title:
+        description: "Video title (used for the file name)"
+        required: true
+      scale:
+        description: "Render scale: 0.6 = 648x1152 upscaled to 1080x1920 (fast), 1 = native (about 3x slower)"
+        default: "0.6"
+      shards:
+        description: "Parallel render jobs"
+        default: "8"
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: render-${{ inputs.episode }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.split.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy pillow
+      - name: Build project
+        run: bash tools/build.sh "${{ inputs.episode }}" "$RUNNER_TEMP/project"
+      - name: Split frames into shards
+        id: split
+        run: |
+          N=$(cat "$RUNNER_TEMP/project/frames.txt")
+          python3 - "$N" "${{ inputs.shards }}" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, sys
+          n, k = int(sys.argv[1]), max(1, int(sys.argv[2]))
+          size = -(-n // k)
+          shards = [{"i": i, "range": f"{i*size}-{min(n, (i+1)*size) - 1}"} for i in range(k) if i * size < n]
+          print("shards=" + json.dumps(shards))
+          PY
+      - name: Package project
+        run: rm -rf "$RUNNER_TEMP/project/node_modules" && tar -C "$RUNNER_TEMP" -czf project.tgz project
+      - uses: actions/upload-artifact@v4
+        with: { name: project, path: project.tgz, retention-days: 3 }
+
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: ${{ fromJson(needs.prepare.outputs.shards) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: project }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Unpack and install Chromium
+        run: |
+          tar -xzf project.tgz
+          cd project && npm init -y >/dev/null && npm install -s playwright && npx playwright install --with-deps chromium
+      - name: Render frames ${{ matrix.shard.range }}
+        working-directory: project
+        env:
+          HASH: "?s=${{ inputs.scale }}"
+        run: node render.mjs frames "${{ matrix.shard.range }}" 2>&1 | grep -v "GL Driver Message" | tail -20
+      - uses: actions/upload-artifact@v4
+        with: { name: "frames-${{ matrix.shard.i }}", path: project/frames, retention-days: 3 }
+
+  finish:
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: project }
+      - run: tar -xzf project.tgz
+      - uses: actions/download-artifact@v4
+        with: { pattern: "frames-*", path: project/frames, merge-multiple: true }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy pillow
+      - name: Check frames
+        working-directory: project
+        run: |
+          N=$(cat frames.txt); HAVE=$(ls frames | wc -l)
+          echo "frames: $HAVE of $N"; [ "$HAVE" -eq "$N" ]
+      - name: Music, SFX and mix
+        working-directory: project
+        run: python3 audio.py && python3 mix.py voice.mp3 music.wav sfx.wav | tee mix_report.txt
+      - name: Encode and QA
+        working-directory: project
+        run: bash finish.sh "${{ inputs.title }}" | tee out/qa_report.txt
+      - name: Summary
+        working-directory: project
+        run: |
+          { echo "## ${{ inputs.title }}"; echo '```'; cat mix_report.txt out/qa_report.txt; echo '```'; echo "Download the video from the **video** artifact below."; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: |
+            project/out/*.mp4
+            project/out/qa_sheet.jpg
+            project/out/qa_report.txt
+            project/mix_report.txt
