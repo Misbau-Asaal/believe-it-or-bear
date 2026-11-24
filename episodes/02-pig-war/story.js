@@ -24,8 +24,8 @@ export const SHOTS = [
   { id: 'pan', a: 952, b: 994, light: 'day' },
   { id: 'kaiser', a: 995, b: 1097, light: 'room' },
   { id: 'panel', a: 1098, b: 1167, light: 'room' },
-  { id: 'toll', a: 1168, b: 1237, light: 'golden' },
-  { id: 'end', a: 1238, b: 1265, light: 'golden' },
+  { id: 'toll', a: 1168, b: 1227, light: 'golden' },
+  { id: 'end', a: 1228, b: 1265, light: 'golden' },
 ];
 export const shotAt = (f) => SHOTS.find((s) => f >= s.a && f <= s.b) || SHOTS[SHOTS.length - 1];
 const { smooth, back, easeOut, easeIn } = M;
@@ -78,8 +78,8 @@ const CAMS = {
   pan: [{ f: 952, pos: P(0, 26, 46), look: P(-44, 2, 4), fov: 40 }, { f: 962, pos: P(0, 26, 46), look: P(-44, 2, 4), fov: 40 }, { f: 978, pos: P(0, 26, 46), look: P(44, 2, 4), fov: 40, ease: 'smooth' }, { f: 994, pos: P(2, 25, 44), look: P(44, 2, 4), fov: 38 }],
   kaiser: [{ f: 995, pos: P(RX, 2.4, 4.8), look: P(RX, 2.6, -3.0), fov: 46 }, { f: 1097, pos: P(RX, 2.3, 3.8), look: P(RX, 2.5, -3.0), fov: 44 }],
   panel: [{ f: 1098, pos: P(RX, 2.2, 6.6), look: P(RX, 2.6, -2.8), fov: 48 }, { f: 1167, pos: P(RX, 2.2, 5.8), look: P(RX, 2.7, -2.8), fov: 46 }],
-  toll: [{ f: 1168, pos: P(1.5, 1.45, 8.2), look: P(1.5, 1.0, 1.0), fov: 34 }, { f: 1237, pos: P(1.5, 1.35, 6.6), look: P(1.5, 0.95, 1.0), fov: 32 }],
-  end: [{ f: 1238, pos: P(1.5, 0.75, 4.0), look: P(1.5, 0.75, 1.3), fov: 32 }, { f: 1265, pos: P(1.5, 0.78, 3.5), look: P(1.5, 0.85, 1.3), fov: 30 }],
+  toll: [{ f: 1168, pos: P(1.5, 1.45, 8.2), look: P(1.5, 1.0, 1.0), fov: 34 }, { f: 1227, pos: P(1.5, 1.37, 6.8), look: P(1.5, 0.96, 1.0), fov: 32 }],
+  end: [{ f: 1228, pos: P(1.5, 0.8, 4.2), look: P(1.5, 0.9, 1.3), fov: 34 }, { f: 1265, pos: P(1.5, 0.85, 3.8), look: P(1.5, 1.0, 1.3), fov: 33 }],
 };
 const KICKS = [{ f: 340, a: 0.07 }, { f: 432, a: 0.04 }, { f: 1122, a: 0.05 }];
 export const camAt = (f) => {
@@ -221,8 +221,8 @@ export const actorsAt = (f, T) => {
       break;
     }
     case 'end': {
-      const rise = smooth(ramp(f, 1240, 1258));
-      out.push(PIG(T, { expr: f > 1252 ? 'wink' : 'happy', ghost: true, halo: true }, P(1.5, lerp(-0.3, 0.95, rise), 1.15), { s: 0.62, blob: false, shadow: false, alpha: 0.95, order: 1 }));
+      const rise = smooth(ramp(f, 1231, 1246));
+      out.push(PIG(T, { expr: f > 1251 ? 'wink' : 'happy', ghost: true, halo: true }, P(1.5, lerp(-0.3, 0.95, rise), 1.15), { s: 0.62, blob: false, shadow: false, alpha: 0.95, order: 1 }));
       break;
     }
   }
