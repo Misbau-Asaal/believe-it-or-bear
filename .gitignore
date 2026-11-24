@@ -1,0 +1,14 @@
+# media and build output stay out of git
+*.mp3
+*.wav
+*.mp4
+*.f32
+frames/
+stills/
+out/
+work/
+node_modules/
+vendor/
+web/lib/
+*.png
+!brand/*.png
