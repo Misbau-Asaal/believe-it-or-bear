@@ -1,0 +1,48 @@
+name: Make voiceover
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode folder under episodes/, e.g. 03-emu-war (must contain script.txt)"
+        required: true
+      model:
+        description: "ElevenLabs model"
+        default: "eleven_v4"
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Generate voiceover
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+        run: python3 tools/voice.py "episodes/${{ inputs.episode }}" --model "${{ inputs.model }}"
+      - name: Word and phrase timing
+        run: |
+          E="episodes/${{ inputs.episode }}"; mkdir -p "$E/timing"
+          python3 tools/timing.py "$E/voice.mp3" "$E/script.txt" --out "$E/timing" | tee "$E/timing/phrases.txt"
+      - name: Commit voiceover and timing
+        run: |
+          E="episodes/${{ inputs.episode }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$E/voice.mp3" "$E/timing"
+          git commit -m "Voiceover and timing for ${{ inputs.episode }}" && git push
+      - name: Summary
+        run: |
+          E="episodes/${{ inputs.episode }}"
+          { echo "## Voiceover for ${{ inputs.episode }}"; echo '```'; cat "$E/timing/phrases.txt"; echo '```'; echo "Listen to it in the repo: $E/voice.mp3"; } >> "$GITHUB_STEP_SUMMARY"
