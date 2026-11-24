@@ -1,5 +1,6 @@
 # media and build output stay out of git
 *.mp3
+!episodes/*/voice.mp3
 *.wav
 *.mp4
 *.f32
