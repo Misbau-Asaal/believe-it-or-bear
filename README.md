@@ -2,46 +2,56 @@
 
 True stories. Twist endings. Vertical animated shorts for YouTube Shorts, Instagram Reels and TikTok.
 
-This repo is the production pipeline: a voiceover goes in, a finished 1080x1920 MP4 with music and sound effects comes out.
+This repo is the production pipeline: a script goes in, a finished 1080x1920 MP4 with voice, music, sound effects and an end card comes out.
 
 ## Layout
 
 | Folder | What's in it |
 |---|---|
 | `engine/` | The renderer (three.js in headless Chromium): world, cards, ink pass, lens blur, grade (`main.js`), painted textures (`paint.js`), cast drawing (`roman.js`), motion helpers (`motion.js`), `index.html` |
-| `tools/` | `build.sh` (episode folder to ready project), `setup.sh` (new episode project), `patch_scale.py` (render scale), `timing.py` (word timings), `render.mjs` (frames), `sheet.py` (contact sheets), `mix.py` (level-locked mix), `finish.sh` (encode + QA) |
+| `tools/` | `build.sh` (episode folder to ready project), `setup.sh` (new episode project), `patch_scale.py` (render scale), `voice_local.py` (free voice), `timing.py` (word timings), `render.mjs` (frames), `sheet.py` (contact sheets), `mix.py` (level-locked mix), `outro.py` (end card), `finish.sh` (encode + QA) |
 | `templates/` | `audio.py`: synthesized music bed + SFX, written as two stems |
 | `example/soldier/` | `story.js`: the worked example shot plan ("The Soldier Who Never Left") |
-| `episodes/` | One folder per episode: `script.txt`, sources, notes, and once ready `voice.mp3`, `story.js`, `audio.py` |
+| `episodes/` | One folder per episode: `script.txt`, sources, notes, and once ready `story.js`, `audio.py` (and `voice.mp3` only for hand-made voiceovers) |
 | `.github/workflows/` | `render.yml`: renders an episode on GitHub Actions |
 | `brand/` | `bear.py` draws the mascot avatar and the YouTube banner; the PNGs it made |
-| `docs/` | Channel copy: bios, captions, posting rules |
+| `docs/` | Channel copy, automation plan |
 
-Episode voiceovers (`episodes/*/voice.mp3`) are committed so GitHub can render them; frames and finished videos are not (see `.gitignore`).
+Frames and finished videos are not committed (see `.gitignore`).
 
 ## Making an episode
 
 ```bash
-bash tools/setup.sh ~/shorts/02-pig-war episodes/02-pig-war
-cd ~/shorts/02-pig-war
-cp /path/to/voiceover.mp3 voice.mp3
-python3 timing.py voice.mp3 script.txt --out work     # phrase and word timings
+bash tools/build.sh 03-emu-war ~/shorts/03-emu-war     # makes the voice if needed, timings, project
+cd ~/shorts/03-emu-war
 # write web/story.js (shot plan) and audio.py (music + SFX cues) against work/phrases.json
 HASH="?s=0.4" node render.mjs stills/test "0-9999" 45 && python3 sheet.py stills/test sheet.jpg 10   # quick review
 HASH="?s=0.6" RESUME=1 node render.mjs frames "0-<last frame>"                                     # full render
 python3 audio.py && python3 mix.py voice.mp3 music.wav sfx.wav
-bash finish.sh "Episode Title"
+bash finish.sh "Episode Title"                         # adds the end card, encodes, QA
 ```
 
 ## Rendering on GitHub (no computer needed)
 
-1. Put the episode in `episodes/<NN-name>/`: `script.txt`, `voice.mp3`, `story.js` (shot plan) and `audio.py` (music + SFX cues).
+1. Put the episode in `episodes/<NN-name>/`: `script.txt`, `story.js` (shot plan) and `audio.py` (music + SFX cues). `voice.mp3` is optional: without it the build makes the channel voice for free from `script.txt` (see Voice below).
    An optional `web/` folder inside the episode replaces engine files (for example a new world in `main.js` or new characters in `roman.js`).
 2. Open the **Actions** tab, choose **Render episode**, click **Run workflow**, and fill in the episode folder and the title.
-3. GitHub builds the project, renders the frames in parallel shards, adds music and SFX at the locked levels, encodes and runs QA.
+3. GitHub builds the project, renders the frames in parallel shards, adds music and SFX at the locked levels, adds the end card, encodes and runs QA.
 4. When it finishes, download the **video** artifact from the run page: the MP4, a contact sheet and the mix/QA reports.
 
-Locally the same steps are `bash tools/build.sh <NN-name> <project_dir>`, then `render.mjs`, `audio.py`, `mix.py` and `finish.sh` inside the project.
+## Voice (free, no API)
+
+`tools/voice_local.py` speaks `script.txt` with Kokoro-82M (Apache-2.0, commercial use allowed), voice **am_michael** at speed 1.1.
+It runs on CPU inside the render job, downloads the model once (about 350 MB from the kokoro-onnx GitHub release) and needs no key.
+The same script always gives the same audio, so story timings worked out locally match the GitHub render.
+Per-episode overrides go in `episodes/<ep>/voice.json`, e.g. `{"speed": 1.05, "para_gap": 0.7}`.
+An episode that has its own `voice.mp3` (episode 2, ElevenLabs) uses that file instead.
+
+## End card
+
+`tools/outro.py` adds about 2.5 s after the story: the bear pops in over the blurred last frame with FOLLOW, like and bell badges,
+a short chime and the spoken line "Follow for more true stories." It is on by default.
+`episodes/<ep>/outro.json` can change the line (`{"line": "..."}`) or turn it off (`{"enabled": false}`).
 
 ## Audio rules (fixed)
 
@@ -53,4 +63,4 @@ Locally the same steps are `bash tools/build.sh <NN-name> <project_dir>`, then `
 - `?s=0.6` renders at 648x1152 and `finish.sh` upscales to 1080x1920. Full size is about 3x slower on one CPU.
 - `RESUME=1` skips frames that already exist, so an interrupted render picks up where it stopped.
 
-Built on github.com/mromidev/claude-animated-shorts (MIT): toon.ts, look values and readability rules.
+Built on github.com/mromidev/claude-animated-shorts (MIT): toon.ts, look values and readability rules. Voice: Kokoro-82M (Apache-2.0) via kokoro-onnx (MIT).

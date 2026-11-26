@@ -2,6 +2,8 @@
 # Encode frames + mix -> mp4, then QA.   bash finish.sh "Title Of Short"
 # Frames may be rendered below 1080x1920 (e.g. ?s=0.6 to save time); they are upscaled here.
 set -e; T="${1:-short}"; mkdir -p out; F="out/${T// /-}.mp4"; SCALE="${SCALE:-1080:1920}"
+# end card (follow / like / subscribe): appends frames + audio, skipped with OUTRO=0 or a no_outro file
+if [ "${OUTRO:-1}" != 0 ] && [ ! -f no_outro ] && [ -f outro.py ]; then python3 outro.py; fi
 # one linear gain to about -14 LUFS plus a -1 dBFS peak limiter (no dynamic loudness processing)
 I=$(ffmpeg -nostats -i mix_raw.wav -af ebur128 -f null - 2>&1 | grep -E "^\s+I:" | tail -1 | awk '{print $2}')
 G=$(python3 -c "print(round(-14 - ($I), 2))")
