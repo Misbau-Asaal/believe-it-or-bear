@@ -301,7 +301,7 @@ export const fxAt = (f, T) => {
     case 'fire': {
       if (f % 3 !== 2) { const t = q((f % 3) / 3, 2); out.push(FX('mz' + t, (p) => T.fxMuzzle(p, t), P(30.0, 1.12, 6.75), 0.38, { order: 6 })); }
       for (let i = 0; i < 3; i++) { const t = q(((f * 0.18) + i / 3) % 1, 2); out.push(FX('tr' + i + t, (p) => T.fxTracer(p, t), P(30.0, 1.15 + i * 0.04, 6.4 - t * 6), 0.9)); }
-      if (f >= 752 && f < 790) { const t = q(ramp(f, 752, 790), 2); out.push(FX('rat' + t, (p) => T.fxWord(p, 'RAT-A-TAT-TAT!', Math.min(0.6, t), '#ffd84a', 84), P(30.3, 1.0, 7.4), 1.2)); }
+      if (f >= 752 && f < 790) { const t = q(ramp(f, 752, 790), 2); out.push(FX('rat' + t, (p) => T.fxWord(p, 'RAT-A-TAT!', Math.min(0.6, t), '#ffd84a', 78), P(30.5, 1.05, 8.6), 0.8)); }
       break;
     }
     case 'dodge': {
@@ -326,7 +326,9 @@ export const fxAt = (f, T) => {
     }
     case 'tank': {
       const x = emuTankX(f);
-      for (let i = 0; i < 2; i++) { const at = 1092 + i * 9; if (((f - at) % 18 + 18) % 18 < 8 && f >= at) { const t = q((((f - at) % 18 + 18) % 18) / 8, 2); out.push(FX('ping' + i + t, (p) => T.fxPing(p, t), P(x + 0.35, 2.05 + i * 0.1, 1.7), 0.5)); out.push(FX('pw' + i + t, (p) => T.fxWord(p, 'PING!', Math.min(0.6, t), '#ffffff', 110), P(x + 0.3 + i * 0.5, 1.6 + i * 0.3, 1.7), 1.0)); } }
+      for (let i = 0; i < 2; i++) { const at = 1092 + i * 9; if (((f - at) % 18 + 18) % 18 < 8 && f >= at) { const t = q((((f - at) % 18 + 18) % 18) / 8, 2); out.push(FX('ping' + i + t, (p) => T.fxPing(p, t), P(x + 0.35, 2.05 + i * 0.1, 1.7), 0.5)); out.push(FX('pw' + i + t, (p) => T.fxWord(p, 'PING!', Math.min(0.6, t), '#ffffff', 110), P(x + 0.3 + i * 0.5, 1.2 + i * 0.25, 1.7), 0.9)); } }
+      if (f >= 1104) { const t = q(clamp((f - 1104) / 44), 2), C = camAt(f), d = C.look.map((v, i) => v - C.pos[i]), n = Math.hypot(...d), at = C.pos.map((v, i) => v + d[i] / n * 2.6);
+        out.push(FX('tanks' + t, (p) => T.fxWord(p, 'LIKE TANKS!', Math.min(0.45, t), '#ffd84a', 80), P(at[0], at[1] + 0.45 - 0.79, at[2]), 0.7)); }
       for (let i = 0; i < 2; i++) { const k = q(((f * 0.1) + i / 2) % 1, 2); if (f < 1140) out.push(FX('td' + i + k, (p) => T.fxDust(p, k, '#d8a07a'), P(x - 0.9 - k, 0.3 + k * 0.3, 1.6), 0.45 + 0.4 * k)); }
       break;
     }
