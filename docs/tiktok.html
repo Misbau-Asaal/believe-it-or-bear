@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTok login - Believe It Or Bear</title><style>body{font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;line-height:1.55;color:#222;background:#fffdf7}code{display:block;word-break:break-all;background:#f3efe4;padding:12px;border-radius:8px;font-size:15px}button{margin-top:12px;padding:10px 16px;font-size:16px;border-radius:8px;border:0;background:#b45309;color:#fff}</style></head><body>
+<h1>TikTok login</h1>
+<p id="msg">Waiting for TikTok…</p>
+<code id="code"></code>
+<button id="copy" hidden>Copy code</button>
+<p>Paste it into <b>Actions → Post to Instagram and TikTok → Run workflow → tiktok_code</b> within a few minutes. The code works once.</p>
+<p style="margin-top:40px;font-size:.9em"><a href="index.html">Home</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>
+<script>
+const q = new URLSearchParams(location.search), c = q.get("code"), e = q.get("error_description") || q.get("error");
+const msg = document.getElementById("msg"), box = document.getElementById("code"), btn = document.getElementById("copy");
+if (c) { msg.textContent = "Logged in. Your one-time code:"; box.textContent = c; btn.hidden = false;
+  btn.onclick = () => navigator.clipboard.writeText(c).then(() => (btn.textContent = "Copied")); }
+else if (e) { msg.textContent = "TikTok returned an error: " + e; box.hidden = true; }
+else { msg.textContent = "Open the TikTok login link from docs/social_setup.md to get a code here."; box.hidden = true; }
+</script></body></html>

@@ -89,6 +89,8 @@ jobs:
   finish:
     needs: render
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       TITLE: ${{ inputs.title != '' && inputs.title || inputs.episode }}
     steps:
@@ -128,6 +130,15 @@ jobs:
             project/out/qa_sheet.jpg
             project/out/qa_report.txt
             project/mix_report.txt
+      - name: Attach the video to the episode's release (Instagram and TikTok posting read it from there)
+        working-directory: project
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EP: ${{ inputs.episode }}
+        run: |
+          cp out/*.mp4 "$RUNNER_TEMP/$EP.mp4"
+          gh release view "ep-$EP" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "ep-$EP" -R "$GITHUB_REPOSITORY" --title "$EP" --notes "Rendered video for $EP"
+          gh release upload "ep-$EP" "$RUNNER_TEMP/$EP.mp4" -R "$GITHUB_REPOSITORY" --clobber
       - name: Upload to YouTube
         if: inputs.upload != 'none'
         working-directory: project
