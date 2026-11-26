@@ -7,8 +7,13 @@ on:
         description: "Episode folder under episodes/, e.g. 02-pig-war"
         required: true
       title:
-        description: "Video title (used for the file name)"
-        required: true
+        description: "File name for the video (optional, defaults to the episode folder)"
+        default: ""
+      upload:
+        description: "Upload to YouTube when done (private = waits in YouTube Studio for you to publish)"
+        type: choice
+        options: [private, unlisted, public, none]
+        default: private
       scale:
         description: "Render scale: 0.6 = 648x1152 upscaled to 1080x1920 (fast), 1 = native (about 3x slower)"
         default: "0.6"
@@ -84,7 +89,11 @@ jobs:
   finish:
     needs: render
     runs-on: ubuntu-latest
+    env:
+      TITLE: ${{ inputs.title != '' && inputs.title || inputs.episode }}
     steps:
+      - uses: actions/checkout@v4
+        with: { path: repo }
       - uses: actions/download-artifact@v4
         with: { name: project }
       - run: tar -xzf project.tgz
@@ -106,11 +115,11 @@ jobs:
         run: python3 audio.py && python3 mix.py voice.mp3 music.wav sfx.wav | tee mix_report.txt
       - name: Encode and QA
         working-directory: project
-        run: bash finish.sh "${{ inputs.title }}" | tee out/qa_report.txt
+        run: bash finish.sh "$TITLE" | tee out/qa_report.txt
       - name: Summary
         working-directory: project
         run: |
-          { echo "## ${{ inputs.title }}"; echo '```'; cat mix_report.txt out/qa_report.txt; echo '```'; echo "Download the video from the **video** artifact below."; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "## $TITLE"; echo '```'; cat mix_report.txt out/qa_report.txt; echo '```'; echo "Download the video from the **video** artifact below."; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: video
@@ -119,3 +128,14 @@ jobs:
             project/out/qa_sheet.jpg
             project/out/qa_report.txt
             project/mix_report.txt
+      - name: Upload to YouTube
+        if: inputs.upload != 'none'
+        working-directory: project
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          POST="../repo/episodes/${{ inputs.episode }}/post.json"
+          [ -f "$POST" ] || { echo "no post.json for this episode, skipping the upload"; exit 0; }
+          python3 ../repo/tools/youtube_upload.py out/*.mp4 "$POST" --privacy "${{ inputs.upload }}"
