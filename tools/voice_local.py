@@ -4,7 +4,8 @@
   python3 tools/voice_local.py <episode dir>                 -> <episode dir>/voice.mp3
   python3 tools/voice_local.py --line "Some text" out.wav    -> one line (used for the outro)
 
-Settings come from <episode dir>/voice.json when present, e.g. {"voice": "am_michael", "speed": 1.1}.
+Settings come from <episode dir>/voice.json when present, e.g. {"voice": "am_michael", "speed": 1.1,
+"say": {"Wojtek": "Voytek"}} ("say" respells words for pronunciation only; script.txt keeps the real spelling).
 Each sentence is spoken separately and joined with fixed pauses (short inside a paragraph, longer
 between paragraphs), so pacing is predictable and tools/timing.py finds clean gaps.
 Model files (about 350 MB) are downloaded once into ~/.cache/kokoro from the kokoro-onnx GitHub release.
@@ -27,6 +28,7 @@ def model():
     return Kokoro(os.path.join(CACHE, "kokoro-v1.0.onnx"), os.path.join(CACHE, "voices-v1.0.bin"))
 
 def say(k, text, cfg):
+    for w, r in cfg.get("say", {}).items(): text = text.replace(w, r)
     s, sr = k.create(text, voice=cfg["voice"], speed=cfg["speed"], lang=cfg["lang"])
     s = np.asarray(s, np.float32)
     # trim the model's own leading/trailing silence so our gaps are the only pauses
