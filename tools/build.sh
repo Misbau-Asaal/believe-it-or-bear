@@ -4,7 +4,7 @@
 # The episode folder must contain: script.txt, story.js (shot plan), audio.py (music + SFX cues).
 # voice.mp3 is optional: without it the free Kokoro voice is generated from script.txt (tools/voice_local.py, voice.json).
 # The end card (tools/outro.py) is on by default; episodes/<ep>/outro.json can set {"enabled": false} or a different "line".
-# Optional: episodes/<ep>/cast.js (extra characters/fx), episodes/<ep>/world.js (the episode's world, see tools/patch_engine.py),
+# Optional: episodes/<ep>/retime.json (re-voiced episode, see tools/retime.py), episodes/<ep>/cast.js (extra characters/fx), episodes/<ep>/world.js (the episode's world, see tools/patch_engine.py),
 #           episodes/<ep>/web/ (files that replace engine files outright).
 set -e
 KIT="$(cd "$(dirname "$0")/.." && pwd)"; EP="${1:?episode}"; P="${2:?project dir}"; E="$KIT/episodes/$EP"
@@ -30,6 +30,8 @@ cat "$P/web/toonbase.js" "$P/web/roman.js" $CAST > "$P/web/toon.js"
 python3 "$KIT/tools/patch_scale.py" "$P/web/main.js"
 WORLD=""; [ -f "$E/world.js" ] && WORLD="$E/world.js"
 python3 "$KIT/tools/patch_engine.py" "$P/web/main.js" $WORLD
+# re-voiced episode: stretch the original shot plan and audio cues onto the new voice (see tools/retime.py)
+[ -f "$E/retime.json" ] && python3 "$KIT/tools/retime.py" "$P" "$E/retime.json"
 ( cd "$P" && python3 timing.py voice.mp3 script.txt --out work | tail -n +1 )
 D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$P/voice.mp3")
 python3 -c "print(round($D * 30))" > "$P/frames.txt"
