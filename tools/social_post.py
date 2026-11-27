@@ -116,7 +116,14 @@ def tt_token():
     print(f"TikTok: login refreshed (refresh token valid {int(r.get('refresh_expires_in', 0)) // 86400} more days).")
     return r["access_token"]
 
-def tt_draft(ep, path):
+def tt_caption(post):
+    """Caption to paste in the TikTok app: post.json "tiktok_caption", else the title (without #shorts) + the hashtag line."""
+    if post.get("tiktok_caption"): return post["tiktok_caption"]
+    title = post.get("title", "").replace("#shorts", "").strip()
+    tags = [l.strip() for l in post.get("description", "").splitlines() if l.strip().startswith("#")]
+    return title + ("\n\n" + tags[-1] if tags else "")
+
+def tt_draft(ep, path, post=None):
     tok = tt_token()
     if not tok: return
     size = os.path.getsize(path)
@@ -136,7 +143,8 @@ def tt_draft(ep, path):
         s = st.get("data", {}).get("status")
         if s in ("SEND_TO_USER_INBOX", "PUBLISH_COMPLETE"): break
         if s == "FAILED": raise RuntimeError(f"TikTok processing failed: {st}")
-    summary("TikTok: sent to your TikTok inbox as a draft. Open TikTok → Inbox → the upload notification, add the caption, and post.")
+    summary("TikTok: sent to your TikTok inbox as a draft. Open TikTok → Inbox → the upload notification, paste this caption, and post:")
+    summary("```\n" + tt_caption(post or {}) + "\n```")
 
 TT_REDIRECT = os.environ.get("TT_REDIRECT", "https://misbau-asaal.github.io/believe-it-or-bear/tiktok.html")
 def tt_login(code):
@@ -169,7 +177,7 @@ def main():
         try: ig_publish(ep, post, final)
         except Exception as e: errs.append(f"Instagram: {e}"); summary(f"❌ Instagram: {e}")
     if "tiktok" in targets:
-        try: tt_draft(ep, download(url, f"/tmp/{ep}.mp4"))
+        try: tt_draft(ep, download(url, f"/tmp/{ep}.mp4"), post)
         except Exception as e: errs.append(f"TikTok: {e}"); summary(f"❌ TikTok: {e}")
     if errs: sys.exit(1)
 
