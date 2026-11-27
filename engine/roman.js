@@ -107,6 +107,8 @@ export const romanFront = (p, key, opts = {}) => {
       case "reach": { const lf = (opts.lift || 0) * 0.62 * HH; return { pts: [s, [X(42), s[1] - 0.12 * HH - lf * 0.6], [X(82), s[1] - 0.5 * HH - lf]], front: false }; }
       case "cheek": return { pts: [s, [X(16), s[1] + 0.05 * HH], [cx + side * (H.a + 2 * u), hc + 0.25 * H.b]], front: false };
       case "thumb": return { pts: [s, [X(20), s[1] + 0.12 * HH], [X(44), s[1] - 0.12 * HH]], front: false, thumb: true };
+      case "pocket": return { pts: [s, [X(6), s[1] + 0.4 * HH], [tcx + side * 0.46 * T.a, chin + 0.36 * HH]], front: true };   // hand on the chest pocket
+      case "hold": return { pts: [s, [X(12), s[1] + 0.4 * HH], [X(-4), s[1] + 0.1 * HH]], front: true };                       // forearm up, holding something out in front
       default: return { pts: [s, [X(4), s[1] + 0.48 * HH], [X(3), chin + 1.04 * HH]], front: false };
     }
   };
