@@ -1,0 +1,68 @@
+name: Post to TikTok and Instagram
+
+# Run this after you have approved the episode on YouTube. Instagram posts the Reel publicly;
+# TikTok puts it in your TikTok inbox as a draft that you finish posting in the app.
+# The weekly schedule only refreshes the Instagram and TikTok logins so they never expire.
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode folder under episodes/, e.g. 03-emu-war (render it first)"
+        default: ""
+      tiktok_code:
+        description: "One-time setup only: the code from the TikTok login page (leave empty normally)"
+        default: ""
+      where:
+        description: "Where to post"
+        type: choice
+        options: [tiktok, instagram, "instagram,tiktok"]
+        default: tiktok
+  schedule:
+    - cron: "17 3 * * 1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  post:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q pynacl
+      - name: TikTok login (one-time setup)
+        if: inputs.tiktok_code != ''
+        env:
+          TT_CLIENT_KEY: ${{ secrets.TT_CLIENT_KEY }}
+          TT_CLIENT_SECRET: ${{ secrets.TT_CLIENT_SECRET }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python3 tools/social_post.py tiktok-login "${{ inputs.tiktok_code }}"
+      - name: Post
+        if: inputs.episode != ''
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          TT_CLIENT_KEY: ${{ secrets.TT_CLIENT_KEY }}
+          TT_CLIENT_SECRET: ${{ secrets.TT_CLIENT_SECRET }}
+          TT_REFRESH_TOKEN: ${{ secrets.TT_REFRESH_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python3 tools/social_post.py publish "${{ inputs.episode }}" "${{ inputs.where }}"
+
+  refresh:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q pynacl
+      - name: Refresh logins
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          TT_CLIENT_KEY: ${{ secrets.TT_CLIENT_KEY }}
+          TT_CLIENT_SECRET: ${{ secrets.TT_CLIENT_SECRET }}
+          TT_REFRESH_TOKEN: ${{ secrets.TT_REFRESH_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python3 tools/social_post.py refresh
