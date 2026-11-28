@@ -11,7 +11,7 @@ Goal: script in, posted video out. One click renders and schedules both platform
 | End card | built | `tools/outro.py`: bear + FOLLOW / like / bell, about 2.5 s, on by default (`outro.json` to change) |
 | Shot plan, world, cast | Claude | `story.js`, `world.js`, `cast.js`, `audio.py` written per episode from the timing; staging differs every time |
 | Render + encode + QA | built | **Actions → Render episode**: parallel shards, locked audio levels, MP4 as the `video` artifact and in the release `ep-<episode>` |
-| YouTube | built | Same run. `publish: auto` uploads it private and scheduled to go public at the next 6 PM New York time (`tools/slot.py`); `manual` leaves it private for you to publish |
+| YouTube | built | Same run. `publish: auto` uploads it private and scheduled to go public at 6 PM New York time on the episode's day in `episodes/schedule.json` (`tools/slot.py`; see `docs/lineup.md`); `manual` leaves it private for you to publish |
 | TikTok | built | Same run. `auto` schedules it through Buffer for the same minute, with the caption; without Buffer (or if Buffer refuses) it lands in your TikTok inbox as a draft |
 | Human check | you | Watch the private video in YouTube Studio before it goes live. To stop it: set it to Private in YouTube Studio and delete the post in Buffer |
 | Instagram | off | The account was disabled by Meta |
@@ -20,7 +20,7 @@ Goal: script in, posted video out. One click renders and schedules both platform
 
 1. Pick the story; Claude writes and fact-checks `script.txt` and `sources.md` in `episodes/NN-name/`.
 2. Claude generates the free voice from the script (same text always gives the same audio), times the phrases and writes the shot plan, world, cast and audio cues, checks stills, commits.
-3. Actions → **Render episode** (publish: auto). That's all: the run summary shows when it goes live.
+3. Actions → **Render episode** (publish: auto). That's all: it goes live on its day from `episodes/schedule.json`, and the run summary says when.
 
 ## Why Buffer for TikTok
 
@@ -30,7 +30,7 @@ Buffer setup (once): sign up at buffer.com, connect the Believe It Or Bear TikTo
 
 ## Changing the go-live time
 
-`tools/slot.py` picks the next 18:00 New York time that is at least 4 hours away (summer and winter time handled). Change it with workflow env `SLOT_TIME` (e.g. `"20:00"`), `SLOT_TZ` or `SLOT_LEAD_HOURS`.
+`tools/slot.py` takes the episode's day from `episodes/schedule.json` and publishes at 18:00 New York time (summer and winter time handled). An episode with no day, or whose day is less than 4 hours away or past, gets the next day no other episode has, so two episodes never share a day. Change it with workflow env `SLOT_TIME` (e.g. `"20:00"`), `SLOT_TZ` or `SLOT_LEAD_HOURS`.
 
 ## Secrets (Settings → Secrets and variables → Actions)
 

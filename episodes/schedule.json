@@ -1,0 +1,12 @@
+{
+  "about": "Go-live day (New York date) for each episode. tools/slot.py publishes it at 18:00 New York time that day. An episode with no day, or whose day is too close, takes the next day nobody else has.",
+  "days": {
+    "2026-11-30": "05-byron-bear",
+    "2026-12-01": "06-napoleon-rabbits",
+    "2026-12-02": "07-cher-ami",
+    "2026-12-03": "08-popsicle",
+    "2026-12-04": "09-eiffel-con",
+    "2026-12-05": "10-dancing-plague",
+    "2026-12-06": "11-emperor-norton"
+  }
+}
