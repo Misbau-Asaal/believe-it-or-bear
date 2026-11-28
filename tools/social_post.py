@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Post a finished episode to Instagram (Reel) and TikTok (draft in the TikTok inbox). Standard library + PyNaCl.
+"""Post a finished episode to TikTok (scheduled through Buffer, or as a draft in the TikTok inbox) and Instagram (Reel).
+Standard library + PyNaCl.
 
-  python3 tools/social_post.py publish <NN-name> [instagram,tiktok]
+  python3 tools/social_post.py publish <NN-name> [tiktok|buffer|instagram|...] [--at 2026-12-01T23:00:00Z]
+      tiktok    the video lands in your TikTok inbox; you add the caption and post in the app
+      buffer    Buffer posts it on TikTok by itself, with the caption, at --at (or in 5 minutes);
+                falls back to the inbox draft if Buffer isn't set up or refuses
   python3 tools/social_post.py refresh            (keeps the Instagram and TikTok logins alive; run weekly)
   python3 tools/social_post.py tiktok-login <code> (one time: turns the code from the TikTok login page into TT_REFRESH_TOKEN)
 
@@ -12,16 +16,20 @@ Environment (GitHub secrets):
   IG_TOKEN                        Instagram long-lived token (Instagram API with Instagram Login), valid 60 days, refreshed here
   TT_CLIENT_KEY, TT_CLIENT_SECRET TikTok app keys
   TT_REFRESH_TOKEN                TikTok refresh token (valid 365 days, rotated here)
+  BUFFER_API_KEY                  Buffer API key (publish.buffer.com/settings/api); the TikTok channel connected in Buffer is used
+                                  (or BUFFER_CHANNEL_ID to pick one)
   GH_PAT                          fine-grained GitHub token with "Secrets: read and write" on this repo, so refreshed tokens
                                   can be saved back into the secrets
   GITHUB_REPOSITORY               set by GitHub Actions
 Missing secrets for a platform = that platform is skipped with a message (never a crash)."""
 import base64, json, os, sys, time, urllib.error, urllib.parse, urllib.request
+from datetime import datetime, timedelta, timezone
 
 IG_API = os.environ.get("IG_API", "https://graph.instagram.com/v23.0")
 IG_REFRESH = os.environ.get("IG_REFRESH_URL", "https://graph.instagram.com/refresh_access_token")
 TT_API = os.environ.get("TT_API", "https://open.tiktokapis.com/v2")
 GH_API = os.environ.get("GH_API", "https://api.github.com")
+BUFFER_API = os.environ.get("BUFFER_API", "https://api.buffer.com")
 REPO = os.environ.get("GITHUB_REPOSITORY", "Misbau-Asaal/believe-it-or-bear")
 env = lambda k: os.environ.get(k, "").strip()
 
@@ -121,7 +129,8 @@ def tt_caption(post):
     if post.get("tiktok_caption"): return post["tiktok_caption"]
     title = post.get("title", "").replace("#shorts", "").strip()
     tags = [l.strip() for l in post.get("description", "").splitlines() if l.strip().startswith("#")]
-    return title + ("\n\n" + tags[-1] if tags else "")
+    tags = " ".join(tags[-1].split()[:5]) if tags else ""          # Buffer/TikTok: at most 5 hashtags
+    return title + ("\n\n" + tags if tags else "")
 
 def tt_draft(ep, path, post=None):
     tok = tt_token()
@@ -146,6 +155,36 @@ def tt_draft(ep, path, post=None):
     summary("TikTok: sent to your TikTok inbox as a draft. Open TikTok → Inbox → the upload notification, paste this caption, and post:")
     summary("```\n" + tt_caption(post or {}) + "\n```")
 
+
+# ---------------- TikTok through Buffer (posts publicly, with the caption, at a set time) ----------------
+def gql(query):
+    key = env("BUFFER_API_KEY")
+    r = http(BUFFER_API, {"query": query}, headers={"Authorization": f"Bearer {key}"})
+    if r.get("errors"): raise RuntimeError(f"Buffer: {r['errors'][0].get('message', r['errors'])}")
+    return r.get("data", {})
+def gstr(v): return json.dumps(v, ensure_ascii=False)          # a JSON string is a valid GraphQL string literal
+def buffer_channel():
+    if env("BUFFER_CHANNEL_ID"): return env("BUFFER_CHANNEL_ID"), "?"
+    orgs = gql("query { account { organizations { id name } } }")["account"]["organizations"]
+    for o in orgs:
+        chans = gql(f"query {{ channels(input: {{ organizationId: {gstr(o['id'])} }}) {{ id name displayName service }} }}")["channels"]
+        for c in chans:
+            if "tiktok" in str(c.get("service", "")).lower(): return c["id"], c.get("displayName") or c.get("name") or "?"
+    raise RuntimeError("Buffer: no TikTok channel connected. In Buffer, connect the Believe It Or Bear TikTok account first.")
+def buffer_schedule(ep, post, video_url, at=""):
+    if not env("BUFFER_API_KEY"): print("Buffer: no BUFFER_API_KEY secret, so TikTok goes to your inbox as a draft instead."); return False
+    cid, name = buffer_channel()
+    if not at: at = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")   # no time given: in 5 minutes
+    when = f"mode: customScheduled, dueAt: {gstr(at)}"
+    q = (f"mutation {{ createPost(input: {{ channelId: {gstr(cid)}, text: {gstr(tt_caption(post))}, schedulingType: automatic, {when}, "
+         f"assets: [{{ video: {{ url: {gstr(video_url)}, metadata: {{ thumbnailOffset: 1500 }} }} }}] }}) "
+         "{ ... on PostActionSuccess { post { id dueAt } } ... on MutationError { message } } }")
+    r = gql(q).get("createPost") or {}
+    if r.get("message") or not r.get("post"): raise RuntimeError(f"Buffer refused the post: {r.get('message', r)}")
+    summary(f"TikTok: scheduled through Buffer on {name} for {r['post'].get('dueAt') or at or 'now'} (UTC), with the caption. "
+            "Nothing to do in the TikTok app. To cancel, delete it in Buffer.")
+    return True
+
 TT_REDIRECT = os.environ.get("TT_REDIRECT", "https://misbau-asaal.github.io/believe-it-or-bear/tiktok.html")
 def tt_login(code):
     key, sec = env("TT_CLIENT_KEY"), env("TT_CLIENT_SECRET")
@@ -168,7 +207,9 @@ def main():
             except Exception as e: errs.append(str(e)); print(e)
         if errs: sys.exit(1)
         return
-    ep = a[1]; targets = (a[2] if len(a) > 2 else "instagram,tiktok").split(",")
+    at = a[a.index("--at") + 1] if "--at" in a and a.index("--at") + 1 < len(a) else ""
+    rest = [x for i, x in enumerate(a) if x != "--at" and (i == 0 or a[i - 1] != "--at")]
+    ep = rest[1]; targets = (rest[2] if len(rest) > 2 else "tiktok").split(",")
     post = json.load(open(f"episodes/{ep}/post.json"))
     try: url, final = release_video(ep)
     except RuntimeError as e: sys.exit(str(e))
@@ -176,6 +217,11 @@ def main():
     if "instagram" in targets:
         try: ig_publish(ep, post, final)
         except Exception as e: errs.append(f"Instagram: {e}"); summary(f"❌ Instagram: {e}")
+    if "buffer" in targets:
+        done = False
+        try: done = buffer_schedule(ep, post, url, at)
+        except Exception as e: summary(f"⚠️ {e}. Sending TikTok to your inbox as a draft instead.")
+        if not done and "tiktok" not in targets: targets.append("tiktok")
     if "tiktok" in targets:
         try: tt_draft(ep, download(url, f"/tmp/{ep}.mp4"), post)
         except Exception as e: errs.append(f"TikTok: {e}"); summary(f"❌ TikTok: {e}")

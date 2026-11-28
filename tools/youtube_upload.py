@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Upload a finished short to YouTube (Data API v3, resumable upload). Standard library only.
 
-  python3 tools/youtube_upload.py <video.mp4> <episodes/NN-name/post.json> [--privacy private|unlisted|public]
+  python3 tools/youtube_upload.py <video.mp4> <episodes/NN-name/post.json> [--privacy private|unlisted|public] [--publish-at 2026-12-01T23:00:00Z]
 
 Credentials come from the environment (GitHub secrets): YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN.
 If they are missing the script says so and exits 0, so renders still succeed before YouTube is set up.
@@ -9,7 +9,8 @@ If they are missing the script says so and exits 0, so renders still succeed bef
 post.json: {"title": "...", "description": "...", "tags": [...], "category": "27",
             "privacy": "private", "publish_at": "2026-12-01T12:00:00Z" (optional, needs privacy private),
             "synthetic": false, "made_for_kids": false}
-Default privacy is private: the video waits in YouTube Studio until you watch it and press Publish (the human check)."""
+Default privacy is private: the video waits in YouTube Studio until you watch it and press Publish (the human check).
+--publish-at (or post.json publish_at) keeps it private and lets YouTube make it public by itself at that time."""
 import json, os, sys, time, urllib.error, urllib.parse, urllib.request
 
 TOKEN_URL = os.environ.get("YT_TOKEN_URL", "https://oauth2.googleapis.com/token")
@@ -32,6 +33,7 @@ def main():
     if len(a) < 2: sys.exit(__doc__)
     video, post_path = a[0], a[1]
     privacy = a[a.index("--privacy") + 1] if "--privacy" in a else None
+    publish_at = a[a.index("--publish-at") + 1] if "--publish-at" in a and a.index("--publish-at") + 1 < len(a) else ""
     cid, secret, refresh = (os.environ.get(k, "").strip() for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"))
     if not (cid and secret and refresh):
         print("YouTube upload skipped: add the YT_CLIENT_ID, YT_CLIENT_SECRET and YT_REFRESH_TOKEN secrets (docs/youtube_setup.md)."); return
@@ -47,7 +49,8 @@ def main():
     # 2) start a resumable upload with the metadata
     status = {"privacyStatus": privacy, "selfDeclaredMadeForKids": bool(post.get("made_for_kids", False)),
               "containsSyntheticMedia": bool(post.get("synthetic", False))}
-    if post.get("publish_at") and privacy == "private": status["publishAt"] = post["publish_at"]
+    publish_at = publish_at or post.get("publish_at", "")
+    if publish_at: privacy = "private"; status["privacyStatus"] = "private"; status["publishAt"] = publish_at
     meta = {"snippet": {"title": post["title"][:100], "description": post.get("description", "")[:5000], "tags": post.get("tags", []),
                         "categoryId": str(post.get("category", "27")), "defaultLanguage": "en", "defaultAudioLanguage": "en"},
             "status": status}
@@ -65,7 +68,8 @@ def main():
     vid = json.loads(body)["id"]
     lines = [f"Uploaded to YouTube as **{privacy}**: https://youtu.be/{vid}",
              f"Review and publish in YouTube Studio: https://studio.youtube.com/video/{vid}/edit"]
-    if status.get("publishAt"): lines.append(f"Scheduled to go public at {status['publishAt']}.")
+    if status.get("publishAt"):
+        lines.append(f"Scheduled to go public by itself at {status['publishAt']} (UTC). Watch it before then; to stop it, set it to Private in YouTube Studio.")
     print("\n".join(lines))
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as s: s.write("\n### YouTube\n" + "\n\n".join(lines) + "\n")

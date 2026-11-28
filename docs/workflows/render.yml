@@ -9,11 +9,11 @@ on:
       title:
         description: "File name for the video (optional, defaults to the episode folder)"
         default: ""
-      upload:
-        description: "Upload to YouTube when done (private = waits in YouTube Studio for you to publish)"
+      publish:
+        description: "auto = YouTube + TikTok both go public at the next 6 PM New York time (watch it before then) | manual = YouTube private + TikTok inbox draft | none = only render"
         type: choice
-        options: [private, unlisted, public, none]
-        default: private
+        options: [auto, manual, none]
+        default: auto
       scale:
         description: "Render scale: 0.6 = 648x1152 upscaled to 1080x1920 (fast), 1 = native (about 3x slower)"
         default: "0.6"
@@ -130,7 +130,7 @@ jobs:
             project/out/qa_sheet.jpg
             project/out/qa_report.txt
             project/mix_report.txt
-      - name: Attach the video to the episode's release (Instagram and TikTok posting read it from there)
+      - name: Attach the video to the episode's release (TikTok posting reads it from there)
         working-directory: project
         env:
           GH_TOKEN: ${{ github.token }}
@@ -139,8 +139,13 @@ jobs:
           cp out/*.mp4 "$RUNNER_TEMP/$EP.mp4"
           gh release view "ep-$EP" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "ep-$EP" -R "$GITHUB_REPOSITORY" --title "$EP" --notes "Rendered video for $EP"
           gh release upload "ep-$EP" "$RUNNER_TEMP/$EP.mp4" -R "$GITHUB_REPOSITORY" --clobber
+      - name: Pick the go-live time
+        if: inputs.publish == 'auto'
+        run: |
+          echo "AT=$(python3 repo/tools/slot.py)" >> "$GITHUB_ENV"
+          echo "### Goes live $(python3 repo/tools/slot.py --human)" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload to YouTube
-        if: inputs.upload != 'none'
+        if: inputs.publish != 'none'
         working-directory: project
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -149,4 +154,17 @@ jobs:
         run: |
           POST="../repo/episodes/${{ inputs.episode }}/post.json"
           [ -f "$POST" ] || { echo "no post.json for this episode, skipping the upload"; exit 0; }
-          python3 ../repo/tools/youtube_upload.py out/*.mp4 "$POST" --privacy "${{ inputs.upload }}"
+          python3 ../repo/tools/youtube_upload.py out/*.mp4 "$POST" --privacy private ${AT:+--publish-at "$AT"}
+      - name: TikTok (scheduled through Buffer, or a draft in your inbox)
+        if: inputs.publish != 'none'
+        working-directory: repo
+        env:
+          EP: ${{ inputs.episode }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          TT_CLIENT_KEY: ${{ secrets.TT_CLIENT_KEY }}
+          TT_CLIENT_SECRET: ${{ secrets.TT_CLIENT_SECRET }}
+          TT_REFRESH_TOKEN: ${{ secrets.TT_REFRESH_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          pip install -q pynacl
+          if [ -n "$AT" ]; then python3 tools/social_post.py publish "$EP" buffer --at "$AT"; else python3 tools/social_post.py publish "$EP" tiktok; fi
